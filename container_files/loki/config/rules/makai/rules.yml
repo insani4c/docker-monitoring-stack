@@ -1,0 +1,32 @@
+groups:
+- name: CustomLogs
+  rules:
+  - alert: SSHdAuthenticationTimeouts
+    expr: |
+      sum by (priority)( 
+        count_over_time( 
+          {unit="sshd"}
+            |~ "fatal: Timeout before authentication for" [5m]
+        )
+      ) > 5
+    for: 1m
+    labels:
+        severity: critical
+    annotations:
+        summary: SSHd authentication timeouts
+        description: "The amounts of SSHd authentication timeouts is higher than 5\nVALUE: {{ $value }}\nLABELS: {{ $labels }}"
+  - alert: SSHdAuthenticationFailed
+    expr: |
+      sum by (priority)( 
+        count_over_time( 
+          {unit="sshd"}
+            |~ "error: maximum authentication attempts exceeded for invalid user" [5m]
+        )
+      ) > 5
+    for: 1m 
+    labels:
+        severity: critical
+    annotations:
+        summary: SSHd maximum authentication attempts exceeded
+        description: "The amounts of SSHd authentication failures is higher than 5\nVALUE: {{ $value }}\nLABELS: {{ $labels }}"
+

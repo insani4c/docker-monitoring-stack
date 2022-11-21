@@ -1,0 +1,171 @@
+version: '3.8'
+
+name: docmon
+
+volumes:
+  grafana-data: {}
+  alertmanager-data: {}
+  prometheus-data: {}
+  loki-data: {}
+
+services:
+  cadvisor:
+    image: 'gcr.io/cadvisor/cadvisor:latest'
+    container_name: cadvisor
+    restart: always
+    mem_limit: 512m
+    mem_reservation: 32m
+    # ports: 
+    #   - '8880:8080'
+    volumes:
+      - '/:/rootfs:ro'
+      - '/var/run:/var/run:ro'
+      - '/sys:/sys:ro'
+      - '/var/lib/docker/:/var/lib/docker:ro'
+      - '/dev/disk/:/dev/disk:ro'
+    privileged: true
+    devices: 
+      - '/dev/kmsg:/dev/kmsg'
+
+  prometheus:
+    image: 'prom/prometheus:latest'
+    container_name: prometheus
+    restart: always
+    mem_limit: 2048m
+    mem_reservation: 256m
+    cpus: 2
+    # ports:
+    #   - '9090:9090'
+    volumes:
+      - '$PROMETHEUS_HOME/config:/etc/prometheus'
+      - 'prometheus-data:/prometheus'
+    extra_hosts:
+      myrouter: 192.168.1.1
+      myswitch: 192.168.1.10
+    depends_on:
+      - cadvisor
+
+  hypervisor:
+    image: 'prom/node-exporter:latest'
+    container_name: hypervisor
+    mem_limit: 128m
+    mem_reservation: 32m
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+      - '/proc:/host/proc:ro'
+      - '/sys:/host/sys:ro'
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.systemd'
+      - '--collector.cgroups'
+    depends_on:
+      - cadvisor
+
+  prom_snmp:
+    image: 'prom/snmp-exporter:latest'
+    container_name: prom_snmp
+    restart: always
+    mem_limit: 128m
+    mem_reservation: 32m
+    # ports: 
+    #   - '9116:9116'
+    volumes:
+      - '$PROMSNMP_HOME/config:/etc/snmp_exporter'
+    extra_hosts:
+      myrouter: 192.168.1.1
+      myswitch: 192.168.1.10
+    depends_on:
+      - cadvisor
+      - prometheus
+
+  alertmanager:
+    image: 'prom/alertmanager:latest'
+    container_name: alertmanager
+    restart: always
+    mem_limit: 256m
+    mem_reservation: 32m 
+    # ports:
+    #   - 9093:9093
+    volumes:
+      - '$ALERTMANAGER_HOME/config/alertmanager.yml:/etc/alertmanager/config.yml'
+      - 'alertmanager-data:/alertmanager'
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    depends_on:
+      - cadvisor
+      - prometheus
+
+  loki:
+    image: 'grafana/loki:latest'
+    container_name: loki
+    restart: always
+    mem_limit: 32768m
+    mem_reservation: 8192m
+    cpus: 6 
+    ports:
+      - '3100:3100'
+    volumes:
+      - '$LOKI_HOME/config:/etc/loki'
+      - 'loki-data:/loki'
+    depends_on:
+      - cadvisor
+      - prometheus
+      - alertmanager
+
+  blackbox_exporter:
+    image: 'prom/blackbox-exporter:latest'
+    container_name: blackbox_exporter
+    restart: always
+    mem_limit: 128m
+    mem_reservation: 32m
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    # ports:
+    #   - 9115:9115
+    volumes:
+      - '$BLACKBOXEXPORTER_HOME/config:/etc/blackboxexporter/'
+    command:
+      - '--config.file=/etc/blackboxexporter/config.yml'
+    depends_on:
+      - cadvisor
+      - prometheus
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: always
+    mem_limit: 256m
+    mem_reservation: 64m
+    volumes:
+      - $PROMTAIL_HOME/config:/etc/promtail/
+      # to read container labels and logs
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - '/var/lib/docker/containers:/var/lib/docker/containers:ro'
+      - '/var/log/ulog:/var/log/ulog/:ro'
+    depends_on:
+      - cadvisor
+      - loki
+
+  grafana:
+    image: 'grafana/grafana:latest'
+    container_name: grafana
+    restart: always
+    mem_limit: 2048m
+    mem_reservation: 256m
+    ports:
+      - '3000:3000'
+    volumes:
+      - '$GRAFANA_HOME/config:/etc/grafana'
+      - 'grafana-data:/var/lib/grafana'
+      - '$GRAFANA_HOME/dashboards:/var/lib/grafana/dashboards'
+    depends_on:
+      - cadvisor
+      - prometheus
+      - loki
+      - alertmanager

@@ -1,0 +1,41 @@
+# # config file version
+apiVersion: 1
+
+datasources:
+ - name: Alertmanager
+   type: alertmanager 
+   access: proxy
+   orgId: 1
+   url: http://alertmanager:9093
+   version: 1
+   editable: false
+   isDefault: false
+   uid: DS_ALERTMANAGER
+   jsonData:
+    implementation: prometheus
+ - name: Prometheus
+   type: prometheus
+   access: proxy
+   orgId: 1
+   url: http://prometheus:9090
+   version: 1
+   editable: false
+   isDefault: true
+   uid: DS_PROMETHEUS
+   jsonData:
+    alertmanagerUid: DS_ALERTMANAGER
+    manageAlerts: true
+    prometheusType: Prometheus
+    prometheusVersion: 2.39.1
+ - name: Loki
+   type: loki 
+   access: proxy
+   orgId: 1
+   url: http://loki:3100
+   version: 1
+   editable: false
+   isDefault: false
+   uid: DS_LOKI
+   jsonData:
+    alertmanagerUid: DS_ALERTMANAGER
+    manageAlerts: true

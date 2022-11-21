@@ -1,0 +1,116 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+  external_labels:
+    monitor: 'MyCompany'
+    contact: 'admin@example.com'
+
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets: ['alertmanager:9093']
+
+rule_files:
+  - "alert.rules.yml"
+
+scrape_configs:
+  - job_name: 'loki'
+    static_configs:
+      - targets: 
+        - 'loki:3100'
+
+  - job_name: firewall
+    static_configs:
+      - targets: 
+        - 'myrouter:9100'
+
+  - job_name: docker
+    static_configs: 
+      - targets:
+        - 'cadvisor:8080'
+
+  - job_name: nodes
+    static_configs:
+      - targets:
+        - 'hypervisor:9100'
+        - 'myserver:9100'
+
+  - job_name: 'http_probes'
+    metrics_path: /probe
+    scrape_interval: 60s
+    params:
+      module: [http_2xx]  # Look for a HTTP 200 response.
+    static_configs:
+      - targets:
+        - 'https://jmorano.moretrix.com/'
+        - 'https://github.com/'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "blackbox_exporter:9115"  # Blackbox exporter.
+
+  - job_name: 'icmp_probes'
+    scrape_interval: 60s
+    metrics_path: /probe
+    params:
+      module: [icmp_probe]
+    static_configs:
+      - targets:
+        - 'jmorano.moretrix.com'
+        - 'github.com'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "blackbox_exporter:9115"  # Blackbox exporter.
+
+  - job_name: 'snmp'
+    metrics_path: /snmp
+    scrape_interval: 30s
+    scrape_timeout: 25s
+    params:
+      module: [if_mib]
+      community: [public]
+    static_configs:
+      - targets:
+        - 192.168.1.1  # myrouter
+        - 192.168.1.10 # myswitch
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [snmpCommunity]
+        target_label: __param_community
+      - source_labels: [mib]
+        target_label: __param_module
+      - target_label: __address__
+        replacement: prom_snmp:9116 # SNMP exporter
+
+  - job_name: 'fw_snmp'
+    metrics_path: /snmp
+    scrape_interval: 15s
+    scrape_timeout: 14s
+    params:
+      module: [pf_mib]
+      community: [public]
+    static_configs:
+      - targets:
+        - 192.168.1.1  # myrouter 
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - source_labels: [snmpCommunity]
+        target_label: __param_community
+      - source_labels: [mib]
+        target_label: __param_module
+      - target_label: __address__
+        replacement: prom_snmp:9116  # SNMP exporter
